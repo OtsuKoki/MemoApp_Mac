@@ -8,7 +8,8 @@ const firebaseConfig = {
   apiKey: 'AIzaSyClu0DL6bk6g1nOpQUCoAqMDqStSXuEvH0',
   authDomain: 'cloudmemo-d4bde.firebaseapp.com',
   projectId: 'cloudmemo-d4bde',
-  storageBucket: 'cloudmemo-d4bde.firebasestorage.app',
+  // storageBucket: 'cloudmemo-d4bde.firebasestorage.app',
+  storageBucket: 'cloudmemo-d4bde.appspot.com', // ←ここを修正！
   messagingSenderId: '649440446701',
   appId: '1:649440446701:web:9937e7f80087a8096524e4',
 };

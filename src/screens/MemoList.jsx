@@ -1,57 +1,100 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { db } from '../../firebase';
+import { collection, query, onSnapshot, orderBy, deleteDoc, doc } from 'firebase/firestore';
 
 export default function MemoList({ navigation, route }) {
   // パラメータの取得
-  // const userId = route.params.userId;
+  const userId = route?.params?.userId;
+  const [memoList, setMemoList] = useState([]);
 
   // newMemoという関数を定義
   const newMemo = () => {
     console.log('新規メモボタンが押されました！');
-    navigation.navigate('MemoEdit', { userId: 'test@mail.com' });
+    navigation.navigate('MemoEdit', { userId, memo: null });
   };
 
-  //ヘッダーの設定;
+  // メモ削除関数
+  const onDelete = async (docId) => {
+    try {
+      const docRef = doc(db, 'users', userId, 'memos', docId);
+      await deleteDoc(docRef);
+      console.log('ドキュメントの削除に成功しました!');
+    } catch (error) {
+      console.error('ドキュメントの削除に失敗しました: ', error);
+    }
+  };
+
+  // メモリストの取得
+  useEffect(() => {
+    if (!userId) return; // userId 未設定なら何もしない
+    const memosCollectionRef = collection(db, 'users', userId, 'memos');
+    const memosQuery = query(memosCollectionRef, orderBy('date', 'desc'));
+
+    const unsubscribe = onSnapshot(memosQuery, (querySnapshot) => {
+      const docs = querySnapshot.docs.map((d) => ({
+        ...d.data(),
+        docId: d.id,
+      }));
+      setMemoList(docs);
+    });
+
+    return unsubscribe;
+  }, [userId]);
+
+  // ヘッダーの設定
   useEffect(() => {
     navigation.setOptions({
-      headerRight: () => {
-        return (
-          <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginRight: 10 }}>
-            <MaterialCommunityIcons name='logout' size={24} color='#5dacbd' />
-          </TouchableOpacity>
-        );
-      },
+      headerRight: () => (
+        <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginRight: 10 }}>
+          <MaterialCommunityIcons name='logout' size={24} color='#5dacbd' />
+        </TouchableOpacity>
+      ),
     });
   }, [navigation]);
 
-  const test = 'テスト';
-  const MEMO = [
-    { id: '1', text: '買い物リスト1', Updatedate: '2025/10/1' },
-    { id: '2', text: '買い物リスト2', Updatedate: '2025/10/2' },
-    { id: '3', text: '買い物リスト3', Updatedate: '2025/10/3' },
-  ];
   const renderItem = ({ item }) => {
+    // item を使う（未定義の memo は使わない）
+    const title = item.text?.trim().split('\n')[0] || '（タイトルなし）';
+    const dateText = item.date
+      ? // Firestore Timestamp の想定
+        typeof item.date.toDate === 'function'
+        ? item.date.toDate().toLocaleDateString()
+        : new Date(item.date).toLocaleDateString()
+      : '';
+
     return (
       <View style={styles.memoCard}>
-        <View>
-          <Text style={styles.memoTitle}>{item.text}</Text>
-          <Text style={styles.memoDate}>{item.Updatedate}</Text>
-        </View>
-        <TouchableOpacity style={styles.deleteButton}>
+        <TouchableOpacity
+          style={styles.memoContent}
+          onPress={() =>
+            navigation.navigate('MemoEdit', {
+              userId,
+              memo: item, // 編集時は既存の item を渡す
+            })
+          }
+        >
+          <Text style={styles.memoTitle} numberOfLines={2}>
+            {title}
+          </Text>
+          <Text style={styles.memoDate}>{dateText}</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.deleteButton} onPress={() => onDelete(item.docId)}>
           <MaterialCommunityIcons name='trash-can-outline' size={22} color='#bbb' />
         </TouchableOpacity>
       </View>
     );
   };
+
   return (
     <View style={styles.container}>
       <FlatList
-        data={MEMO}
+        data={memoList}
         renderItem={renderItem}
-        keyExtractor={(item, index) => {
-          return index.toString();
-        }}
+        keyExtractor={(item) => item.docId}
+        contentContainerStyle={{ padding: 12 }}
       />
 
       <TouchableOpacity style={styles.newButton} onPress={newMemo}>
@@ -62,53 +105,46 @@ export default function MemoList({ navigation, route }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f8f9fa',
-  },
+  container: { flex: 1, backgroundColor: '#f8f9fa' },
 
   memoCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#fff',
+    padding: 12,
     borderRadius: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 4,
     elevation: 2,
+    marginVertical: 6,
+  },
+  memoContent: {
+    flex: 1,
+    paddingRight: 8, // アイコンと被らないように余白
   },
   memoTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: '#333',
   },
-
   memoDate: {
     fontSize: 12,
     color: '#888',
-    marginTop: 4,
+    marginTop: 6,
   },
-  //削除ボタン
   deleteButton: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'absolute', // これを設定することで、他のコンポーネントに邪魔されず固定することができます。
-    top: 5, // 要素が起点の上からどれだけ離れているかを示します
-    right: 5, // 要素が起点の右からどれだけ離れているかを示します
-    borderRadius: 50, // 要素の境界の外側の角を丸める。
-    height: 50,
-    width: 50,
-    // backgroundColor: '#5dacbd', //ターコイズ
-    // marginBottom: 10,
+    padding: 8,
+    marginLeft: 6,
   },
-
-  //新規ボタン
   newButton: {
     alignItems: 'center',
     justifyContent: 'center',
-    position: 'absolute', // これを設定することで、他のコンポーネントに邪魔されず固定することができます。
-    bottom: 40, // 要素が起点の下からどれだけ離れているかを示します
-    right: 20, // 要素が起点の右からどれだけ離れているかを示します
-    borderRadius: 50, // 要素の境界の外側の角を丸める。
+    position: 'absolute',
+    bottom: 40,
+    right: 20,
+    borderRadius: 50,
     height: 60,
     width: 60,
     shadowColor: '#000',
@@ -116,12 +152,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 6,
-
     backgroundColor: '#5dacbd',
-  },
-  newText: {
-    // color: 'white', // 文字の色
-    fontWeight: 'bold', // 文字の太さ
-    fontSize: 16,
   },
 });

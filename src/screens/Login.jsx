@@ -10,16 +10,23 @@ import {
 import { auth } from '../../firebase';
 // ログインと新規登録に使用するコンポーネント
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
+import { navigate } from 'expo-router/build/global-state/routing';
 
 export default function Login({ navigation }) {
   //状態管理
   const [mail, setMail] = useState('');
   const [pass, setpass] = useState('');
 
-  // loginという関数を定義
-  const login = () => {
-    console.log('ログインボタンが押されました！');
-    navigation.navigate('MemoList', { userId: 'test@mail.com' });
+  // ユーザのログインを行う関数
+  const login = async () => {
+    try {
+      await signInWithEmailAndPassword(auth, mail, pass);
+      console.log(`ログイン成功`);
+      navigation.navigate('MemoList', { userId: mail });
+    } catch (err) {
+      console.error('エラー:', err.code);
+      Alert.alert('エラー', 'ログインに失敗しました');
+    }
   };
 
   // ユーザの新規登録を行う関数
@@ -47,12 +54,15 @@ export default function Login({ navigation }) {
             setMail(text);
           }}
           placeholder='メールアドレス'
+          placeholderTextColor='#888'
         />
         <TextInput
           style={styles.textInput}
           value={pass}
           onChangeText={setpass}
           placeholder='パスワード'
+          placeholderTextColor='#888'
+          secureTextEntry={true}
         />
       </View>
       {/* ログインボタンのonPressにlogin関数を指定 */}

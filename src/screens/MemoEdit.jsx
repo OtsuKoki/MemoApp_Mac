@@ -1,17 +1,54 @@
-import React, { useEffect } from 'react';
-import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import React, { useEffect, useState } from 'react';
+import { StyleSheet, Text, TextInput, TouchableOpacity, View, Alert } from 'react-native';
+import { doc, updateDoc, addDoc, collection } from 'firebase/firestore';
+import { db } from '../../firebase';
 
-export default function MemoEdit({ navigation }) {
-  // cancelという関数を定義
+export default function MemoEdit({ navigation, route }) {
+  const { userId, memo } = route.params;
+  const [text, setText] = useState('');
+
+  // 編集の場合は初期値をセット
+  useEffect(() => {
+    if (memo) {
+      setText(memo.text);
+    }
+  }, [memo]);
+
+  // キャンセル
   const cancel = () => {
     console.log('キャンセルボタンが押されました！');
-    navigation.navigate('MemoList');
+    navigation.goBack();
   };
-  // saveという関数を定義
-  const save = () => {
-    console.log('保存ボタンが押されました！');
-    navigation.navigate('MemoList');
+
+  // 保存
+  const save = async () => {
+    if (!text.trim()) {
+      Alert.alert('メモが空です', '内容を入力してください。');
+      return;
+    }
+
+    try {
+      if (memo?.docId) {
+        // --- 編集（上書き）
+        const memoRef = doc(db, 'users', userId, 'memos', memo.docId);
+        await updateDoc(memoRef, {
+          text: text,
+          updatedAt: new Date(),
+        });
+        console.log('メモ更新完了');
+      } else {
+        // --- 新規作成
+        await addDoc(collection(db, 'users', userId, 'memos'), {
+          text: text,
+          updatedAt: new Date(),
+        });
+        console.log('新規メモ作成完了');
+      }
+
+      navigation.goBack();
+    } catch (err) {
+      console.error('メモ保存に失敗:', err);
+    }
   };
 
   return (
@@ -26,7 +63,14 @@ export default function MemoEdit({ navigation }) {
         </TouchableOpacity>
       </View>
 
-      <TextInput style={styles.textInput} />
+      <TextInput
+        style={styles.textInput}
+        value={text}
+        onChangeText={setText}
+        multiline
+        textAlignVertical='top'
+        autoFocus
+      />
     </View>
   );
 }
@@ -34,67 +78,45 @@ export default function MemoEdit({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb', // 少し柔らかい白
+    backgroundColor: '#f9fafb',
     paddingHorizontal: 20,
     paddingTop: 80,
   },
 
-  button: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: 43,
-    width: 300,
-    backgroundColor: '#F5F5F6', //白
-    borderRadius: 10,
+  topButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 20,
   },
 
-  topButtons: {
-    flexDirection: 'row', // 横並び
-    justifyContent: 'space-between', // 両端に配置
-    marginBottom: 20, // TextInputとの間隔
-  },
   cancelButton: {
-    alignItems: 'center',
-    justifyContent: 'center',
     height: 45,
     width: 120,
     borderRadius: 10,
     backgroundColor: '#f28b82',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
     alignItems: 'center',
     justifyContent: 'center',
   },
+
   cancelText: {
     color: '#fff',
     fontWeight: '600',
     fontSize: 16,
-    letterSpacing: 0.5,
   },
 
   saveButton: {
-    alignItems: 'center',
-    justifyContent: 'center',
     height: 45,
     width: 120,
     borderRadius: 10,
     backgroundColor: '#5dacbd',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
     alignItems: 'center',
     justifyContent: 'center',
   },
+
   saveText: {
     color: '#fff',
     fontWeight: '600',
     fontSize: 16,
-    letterSpacing: 0.5,
   },
 
   textInput: {
@@ -104,9 +126,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     fontSize: 18,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    marginBottom: 40, // 下の余白を少し空ける
   },
 });
